@@ -1,7 +1,64 @@
 document.addEventListener('DOMContentLoaded', () => {
     const peerConnection = new PeerConnection();
     const connectionStatus = document.getElementById('connectionStatus');
+    const screenWrapper = document.getElementById('screenWrapper');
+    const remoteVideo = document.getElementById('remoteVideo');
     
+    // Zoom control variables
+    let currentZoom = 1;
+    const ZOOM_STEP = 0.1;
+    const MAX_ZOOM = 3;
+    const MIN_ZOOM = 0.5;
+
+    // Zoom controls
+    document.getElementById('zoomIn').addEventListener('click', () => {
+        if (currentZoom < MAX_ZOOM) {
+            currentZoom += ZOOM_STEP;
+            updateZoom();
+        }
+    });
+
+    document.getElementById('zoomOut').addEventListener('click', () => {
+        if (currentZoom > MIN_ZOOM) {
+            currentZoom -= ZOOM_STEP;
+            updateZoom();
+        }
+    });
+
+    document.getElementById('zoomReset').addEventListener('click', () => {
+        currentZoom = 1;
+        updateZoom();
+    });
+
+    function updateZoom() {
+        remoteVideo.style.transform = `scale(${currentZoom})`;
+    }
+
+    // Full screen handling
+    screenWrapper.addEventListener('dblclick', () => {
+        if (!document.fullscreenElement) {
+            screenWrapper.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    // Add fullscreen button
+    const fullscreenBtn = document.createElement('button');
+    fullscreenBtn.className = 'btn btn-icon fullscreen-btn';
+    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+    screenWrapper.appendChild(fullscreenBtn);
+
+    fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            screenWrapper.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
     // Connect button handler with loading state
     document.getElementById('connectBtn').addEventListener('click', () => {
         const remoteId = document.getElementById('remoteId').value.trim();
@@ -57,21 +114,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // File sharing handlers
     document.getElementById('sendFile').addEventListener('click', () => {
-        document.getElementById('fileInput').click();
+        if (peerConnection.connection) {
+            document.getElementById('fileInput').click();
+        } else {
+            alert('Please connect to a peer first');
+        }
     });
 
     document.getElementById('fileInput').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
+            console.log('File selected:', file);
             peerConnection.sendFile(file);
-            document.getElementById('fileStatus').textContent = `Sending: ${file.name}`;
-            document.getElementById('fileStatus').style.display = 'block';
+            // Reset input
+            e.target.value = '';
         }
     });
 
     // Remote control event listeners
-    const remoteVideo = document.getElementById('remoteVideo');
-    
     remoteVideo.addEventListener('mouseenter', () => {
         if (peerConnection.connection) {
             peerConnection.isControlling = true;
@@ -132,5 +192,23 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('newId').addEventListener('click', () => {
         const newId = peerConnection.generateDigitId();
         peerConnection.peer.reconnect(newId);
+    });
+
+    // File transfer status updates
+    window.addEventListener('fileTransferProgress', (e) => {
+        const { progress, fileName, type } = e.detail;
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.textContent = `${type === 'send' ? 'Sending' : 'Receiving'}: ${fileName} (${progress}%)`;
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'file-status fade-in';
+    });
+
+    window.addEventListener('fileTransferComplete', (e) => {
+        const { fileName, type } = e.detail;
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.textContent = `${type === 'send' ? 'Sent' : 'Received'}: ${fileName}`;
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 3000);
     });
 }); 

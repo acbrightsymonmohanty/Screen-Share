@@ -137,7 +137,6 @@ class PeerConnection {
     setupConnectionHandlers() {
         this.connection.on('open', () => {
             console.log('Connection established');
-            this.enableControls();
             
             if (this.isHost) {
                 // Host can't control their own screen
@@ -153,13 +152,17 @@ class PeerConnection {
                 }
             }
 
+            // Enable file sharing for both sides only after connection
+            this.enableFileSharing();
+            
             // Emit connected event for UI updates
             this.emit('connected');
         });
 
-        this.connection.on('data', (data) => {
+        this.connection.on('data', async (data) => {
+            console.log('Received data:', data); // Debug log
+            
             if (data.type === 'requestScreen' && this.isHost) {
-                // Start sharing screen when client requests it
                 this.shareScreen();
             } else if (data.type === 'mouseMove') {
                 this.handleRemoteMouseMove(data);
@@ -167,14 +170,21 @@ class PeerConnection {
                 this.handleRemoteMouseClick(data);
             } else if (data.type === 'keyPress') {
                 this.handleRemoteKeyPress(data);
-            } else if (data.type === 'file') {
-                this.handleIncomingFile(data);
+            } else if (data.type === 'file-request') {
+                await this.handleFileRequest(data);
+            } else if (data.type === 'file-accepted') {
+                await this.startFileTransfer(this.pendingFileTransfer);
+            } else if (data.type === 'file-rejected') {
+                this.handleFileRejection();
+            } else if (data.type === 'file-chunk') {
+                await this.handleFileChunk(data);
             }
         });
 
         // Handle connection close
         this.connection.on('close', () => {
             this.stopSharing();
+            this.resetFileTransfer();
             this.emit('disconnected');
         });
     }
@@ -260,97 +270,172 @@ class PeerConnection {
     }
 
     async sendFile(file) {
-        const maxChunkSize = 16384; // 16KB chunks
-        const reader = new FileReader();
-        
-        reader.onload = async () => {
-            const buffer = reader.result;
-            const chunks = this.splitArrayBuffer(buffer, maxChunkSize);
-            
-            this.connection.send({
-                type: 'file-meta',
-                name: file.name,
-                size: file.size,
-                totalChunks: chunks.length
-            });
-
-            for (let i = 0; i < chunks.length; i++) {
-                this.connection.send({
-                    type: 'file-chunk',
-                    chunk: chunks[i],
-                    index: i
-                });
-
-                const progress = Math.round(((i + 1) / chunks.length) * 100);
-                document.getElementById('fileStatus').textContent = 
-                    `Sending ${file.name}: ${progress}%`;
-            }
-        };
-
-        reader.readAsArrayBuffer(file);
-    }
-
-    splitArrayBuffer(buffer, chunkSize) {
-        const chunks = [];
-        let offset = 0;
-        
-        while (offset < buffer.byteLength) {
-            chunks.push(buffer.slice(offset, offset + chunkSize));
-            offset += chunkSize;
+        if (!this.connection) {
+            alert('No active connection. Please connect first.');
+            return;
         }
-        
-        return chunks;
+
+        // Send file metadata first
+        this.connection.send({
+            type: 'file-request',
+            name: file.name,
+            size: file.size,
+            type: file.type
+        });
+
+        // Store the file for later
+        this.pendingFileTransfer = file;
+
+        // Show status
+        document.getElementById('fileStatus').textContent = 'Waiting for receiver to accept...';
+        document.getElementById('fileStatus').style.display = 'block';
     }
 
-    handleIncomingFile(data) {
-        if (data.type === 'file-meta') {
+    handleFileRequest(data) {
+        // Show incoming file info
+        const infoDiv = document.querySelector('.incoming-file-info');
+        const acceptBtn = document.getElementById('acceptFile');
+        const rejectBtn = document.getElementById('rejectFile');
+        
+        // Update UI
+        infoDiv.innerHTML = `
+            <div class="file-request">
+                <i class="fas fa-file fa-2x"></i>
+                <p><strong>Incoming File:</strong></p>
+                <p>${data.name}</p>
+                <p>(${this.formatFileSize(data.size)})</p>
+            </div>
+        `;
+        
+        // Show buttons
+        acceptBtn.style.display = 'block';
+        rejectBtn.style.display = 'block';
+        
+        // Handle accept
+        acceptBtn.onclick = () => {
             this.currentFileTransfer = {
                 name: data.name,
                 size: data.size,
-                chunks: new Array(data.totalChunks),
-                receivedChunks: 0
+                type: data.type,
+                chunks: [],
+                receivedSize: 0
             };
-            document.getElementById('fileStatus').textContent = 
-                `Receiving ${data.name}: 0%`;
+            
+            // Hide buttons and update status
+            acceptBtn.style.display = 'none';
+            rejectBtn.style.display = 'none';
+            document.getElementById('fileStatus').textContent = 'Starting transfer...';
             document.getElementById('fileStatus').style.display = 'block';
-        }
-        else if (data.type === 'file-chunk') {
-            this.currentFileTransfer.chunks[data.index] = data.chunk;
-            this.currentFileTransfer.receivedChunks++;
+            
+            // Send acceptance
+            this.connection.send({ type: 'file-accepted' });
+        };
+        
+        // Handle reject
+        rejectBtn.onclick = () => {
+            acceptBtn.style.display = 'none';
+            rejectBtn.style.display = 'none';
+            infoDiv.innerHTML = '<p>No incoming files</p>';
+            this.connection.send({ type: 'file-rejected' });
+        };
+    }
 
-            const progress = Math.round(
-                (this.currentFileTransfer.receivedChunks / 
-                this.currentFileTransfer.chunks.length) * 100
-            );
-            document.getElementById('fileStatus').textContent = 
-                `Receiving ${this.currentFileTransfer.name}: ${progress}%`;
+    async startFileTransfer(file) {
+        if (!file) return;
 
-            if (this.currentFileTransfer.receivedChunks === 
-                this.currentFileTransfer.chunks.length) {
-                this.completeFileTransfer();
-            }
+        try {
+            const chunkSize = 16384; // 16KB chunks
+            const fileReader = new FileReader();
+            let offset = 0;
+
+            fileReader.onload = (e) => {
+                const chunk = e.target.result;
+                this.connection.send({
+                    type: 'file-chunk',
+                    chunk: chunk,
+                    index: offset / chunkSize,
+                    total: Math.ceil(file.size / chunkSize)
+                });
+
+                offset += chunkSize;
+                const progress = Math.min(100, Math.round((offset / file.size) * 100));
+                
+                document.getElementById('fileStatus').textContent = `Sending: ${progress}%`;
+
+                if (offset < file.size) {
+                    // Read next chunk
+                    readNextChunk();
+                } else {
+                    // Transfer complete
+                    document.getElementById('fileStatus').textContent = 'File sent successfully!';
+                    setTimeout(() => {
+                        document.getElementById('fileStatus').style.display = 'none';
+                    }, 3000);
+                }
+            };
+
+            const readNextChunk = () => {
+                const slice = file.slice(offset, offset + chunkSize);
+                fileReader.readAsArrayBuffer(slice);
+            };
+
+            // Start reading
+            readNextChunk();
+        } catch (error) {
+            console.error('File transfer error:', error);
+            document.getElementById('fileStatus').textContent = 'Error sending file';
         }
     }
 
-    completeFileTransfer() {
-        const fileBlob = new Blob(this.currentFileTransfer.chunks);
-        const url = URL.createObjectURL(fileBlob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = this.currentFileTransfer.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    handleFileChunk(data) {
+        if (!this.currentFileTransfer) return;
 
-        document.getElementById('fileStatus').textContent = 
-            `${this.currentFileTransfer.name} received successfully!`;
-        setTimeout(() => {
-            document.getElementById('fileStatus').style.display = 'none';
-        }, 3000);
+        try {
+            // Store chunk
+            this.currentFileTransfer.chunks[data.index] = new Uint8Array(data.chunk);
+            this.currentFileTransfer.receivedSize++;
 
-        this.currentFileTransfer = null;
+            // Update progress
+            const progress = Math.round((this.currentFileTransfer.receivedSize / data.total) * 100);
+            document.getElementById('fileStatus').textContent = `Receiving: ${progress}%`;
+            document.getElementById('fileStatus').style.display = 'block';
+
+            // Check if transfer is complete
+            if (this.currentFileTransfer.receivedSize === data.total) {
+                // Combine chunks and download
+                const blob = new Blob(this.currentFileTransfer.chunks, {
+                    type: this.currentFileTransfer.type || 'application/octet-stream'
+                });
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = this.currentFileTransfer.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                // Show success and reset
+                document.getElementById('fileStatus').textContent = 'File received successfully!';
+                setTimeout(() => {
+                    document.getElementById('fileStatus').style.display = 'none';
+                    document.querySelector('.incoming-file-info').innerHTML = '<p>No incoming files</p>';
+                }, 3000);
+
+                this.currentFileTransfer = null;
+            }
+        } catch (error) {
+            console.error('Error handling chunk:', error);
+            document.getElementById('fileStatus').textContent = 'Error receiving file';
+        }
+    }
+
+    formatFileSize(bytes) {
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        if (bytes === 0) return '0 Bytes';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return Math.round(bytes / Math.pow(1024, i)) + ' ' + sizes[i];
     }
 
     handleRemoteMouseMove(data) {
@@ -389,8 +474,14 @@ class PeerConnection {
     enableControls() {
         document.getElementById('shareScreen').disabled = false;
         document.getElementById('sendFile').disabled = false;
-        document.getElementById('fileStatus').textContent = 'Connected and ready for file transfer';
-        document.getElementById('fileStatus').style.display = 'block';
+        
+        // Reset the receive area
+        this.resetReceiveArea();
+        
+        // Show ready status
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.textContent = 'Connected and ready for file transfer';
+        statusDiv.style.display = 'block';
     }
 
     simulateMouseMove(x, y) {
@@ -407,5 +498,51 @@ class PeerConnection {
 
     generateDigitId() {
         return Math.floor(100000 + Math.random() * 900000).toString();
+    }
+
+    splitArrayBuffer(buffer, chunkSize) {
+        const chunks = [];
+        let offset = 0;
+        
+        while (offset < buffer.byteLength) {
+            chunks.push(buffer.slice(offset, offset + chunkSize));
+            offset += chunkSize;
+        }
+        
+        return chunks;
+    }
+
+    // Add these new methods to handle file sharing
+    enableFileSharing() {
+        const sendFileBtn = document.getElementById('sendFile');
+        sendFileBtn.disabled = false;
+        
+        // Reset the file receive area
+        this.resetReceiveArea();
+        
+        // Show ready status
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.textContent = 'Connected and ready for file transfer';
+        statusDiv.style.display = 'block';
+    }
+
+    handleFileRejection() {
+        alert('File transfer was rejected by the receiver');
+        this.pendingFileTransfer = null;
+        this.resetReceiveArea();
+    }
+
+    resetFileTransfer() {
+        this.pendingFileTransfer = null;
+        this.currentFileTransfer = null;
+        this.resetReceiveArea();
+        
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.style.display = 'none';
+    }
+
+    emitFileEvent(eventName, data) {
+        const event = new CustomEvent(eventName, { detail: data });
+        window.dispatchEvent(event);
     }
 } 

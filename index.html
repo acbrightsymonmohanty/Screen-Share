@@ -3,42 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Control App</title>
+    <title>Remote Desktop Control</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Remote Control App</h1>
-        
-        <div class="connection-controls">
-            <div class="id-section">
-                <h3>Your 6-digit ID: <span id="localId">Generating...</span></h3>
-                <button id="copyId" class="btn">Copy ID</button>
-                <button id="newId" class="btn">Generate New ID</button>
+    <div class="app-container">
+        <nav class="top-nav">
+            <div class="logo">
+                <i class="fas fa-desktop"></i>
+                Remote Control
             </div>
-            <div class="connect-section">
-                <input type="text" id="remoteId" placeholder="Enter Remote ID">
-                <button id="connectBtn" class="btn">Connect</button>
+            <div class="connection-status" id="connectionStatus"></div>
+        </nav>
+
+        <div class="main-content">
+            <div class="connection-panel">
+                <div class="id-section">
+                    <h3><i class="fas fa-fingerprint"></i> Your ID</h3>
+                    <div class="id-display">
+                        <span id="localId">Generating...</span>
+                        <button id="copyId" class="btn btn-icon">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button id="newId" class="btn btn-icon">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="connect-section">
+                    <h3><i class="fas fa-link"></i> Connect to Remote</h3>
+                    <div class="connect-input">
+                        <input type="text" id="remoteId" placeholder="Enter 6-digit ID">
+                        <button id="connectBtn" class="btn btn-primary">
+                            <i class="fas fa-plug"></i> Connect
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <div class="screen-controls">
+                    <button id="shareScreen" class="btn btn-primary" disabled>
+                        <i class="fas fa-share"></i> Share Screen
+                    </button>
+                    <button id="stopSharing" class="btn btn-danger" disabled>
+                        <i class="fas fa-stop"></i> Stop Sharing
+                    </button>
+                    <div class="zoom-controls">
+                        <button id="zoomIn" class="btn btn-icon">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button id="zoomReset" class="btn btn-icon">
+                            <i class="fas fa-compress"></i>
+                        </button>
+                        <button id="zoomOut" class="btn btn-icon">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="screen-container">
+                    <div class="screen-wrapper" id="screenWrapper">
+                        <video id="remoteVideo" autoplay playsinline></video>
+                        <div id="noShare" class="no-share-message">
+                            <i class="fas fa-desktop fa-3x"></i>
+                            <p>Not connected. Enter a remote ID to connect.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="file-transfer-panel">
+                    <div class="file-controls">
+                        <button id="sendFile" class="btn btn-primary" disabled>
+                            <i class="fas fa-file-upload"></i> Send File
+                        </button>
+                        <input type="file" id="fileInput" style="display: none">
+                    </div>
+                    <div class="file-status" id="fileStatus"></div>
+                    <div class="file-receive-area" id="fileReceiveArea">
+                        <div class="incoming-file-info">
+                            <i class="fas fa-file-import fa-2x"></i>
+                            <p>No incoming files</p>
+                        </div>
+                        <div class="file-actions">
+                            <button id="acceptFile" class="btn btn-success" style="display: none">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button id="rejectFile" class="btn btn-danger" style="display: none">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div class="main-controls">
-            <button id="shareScreen" class="btn" disabled>Share My Screen</button>
-            <button id="stopSharing" class="btn" disabled>Stop Sharing</button>
-            <button id="sendFile" class="btn" disabled>Send File</button>
-            <input type="file" id="fileInput" style="display: none">
-        </div>
-
-        <div class="screen-container">
-            <video id="remoteVideo" autoplay playsinline></video>
-            <div id="noShare" class="no-share-message">
-                Not connected. Enter a remote ID to connect.
-            </div>
-        </div>
-
-        <div class="file-transfer-status" id="fileStatus"></div>
-
-        <div class="connection-status" id="connectionStatus"></div>
     </div>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="peer-connection.js"></script>
