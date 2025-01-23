@@ -62,20 +62,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Connect button handler with loading state
     document.getElementById('connectBtn').addEventListener('click', () => {
         const remoteId = document.getElementById('remoteId').value.trim();
+        const connectionStatus = document.getElementById('connectionStatus'); // Assuming this exists in your HTML
+        
         if (remoteId && /^\d{6}$/.test(remoteId)) {
             const connectBtn = document.getElementById('connectBtn');
             connectBtn.disabled = true;
             connectBtn.textContent = 'Connecting...';
             
+            // Attempt to connect
             peerConnection.connect(remoteId);
-            
+    
             // Show connecting status
             connectionStatus.textContent = 'Connecting...';
             connectionStatus.style.display = 'block';
+    
+            // Listen for a successful connection event
+            peerConnection.on('connected', () => {
+                connectBtn.textContent = 'Connected';
+                connectBtn.disabled = false;
+                connectionStatus.textContent = 'Connected successfully';
+                connectionStatus.style.display = 'block';
+            });
+    
+            // Handle connection errors
+            peerConnection.on('error', (error) => {
+                connectBtn.textContent = 'Connect';
+                connectBtn.disabled = false;
+                connectionStatus.textContent = `Connection failed: ${error.message}`;
+                connectionStatus.style.display = 'block';
+            });
         } else {
             alert('Please enter a valid 6-digit ID');
         }
     });
+    
 
     // Listen for connection events
     window.addEventListener('connected', () => {
