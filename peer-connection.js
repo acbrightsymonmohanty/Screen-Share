@@ -160,24 +160,37 @@ class PeerConnection {
         });
 
         this.connection.on('data', async (data) => {
-            console.log('Received data:', data); // Debug log
+            console.log('Received data:', data.type);
             
-            if (data.type === 'requestScreen' && this.isHost) {
-                this.shareScreen();
-            } else if (data.type === 'mouseMove') {
-                this.handleRemoteMouseMove(data);
-            } else if (data.type === 'mouseClick') {
-                this.handleRemoteMouseClick(data);
-            } else if (data.type === 'keyPress') {
-                this.handleRemoteKeyPress(data);
-            } else if (data.type === 'file-request') {
-                await this.handleFileRequest(data);
-            } else if (data.type === 'file-accepted') {
-                await this.startFileTransfer(this.pendingFileTransfer);
-            } else if (data.type === 'file-rejected') {
-                this.handleFileRejection();
-            } else if (data.type === 'file-chunk') {
-                await this.handleFileChunk(data);
+            switch(data.type) {
+                case 'file-request':
+                    this.handleFileRequest(data);
+                    break;
+                case 'file-accepted':
+                    console.log('File accepted by receiver');
+                    if (this.pendingFileTransfer) {
+                        await this.startFileTransfer(this.pendingFileTransfer);
+                    }
+                    break;
+                case 'file-rejected':
+                    console.log('File rejected by receiver');
+                    this.handleFileRejection();
+                    break;
+                case 'file-chunk':
+                    await this.handleFileChunk(data);
+                    break;
+                case 'requestScreen':
+                    this.shareScreen();
+                    break;
+                case 'mouseMove':
+                    this.handleRemoteMouseMove(data);
+                    break;
+                case 'mouseClick':
+                    this.handleRemoteMouseClick(data);
+                    break;
+                case 'keyPress':
+                    this.handleRemoteKeyPress(data);
+                    break;
             }
         });
 
@@ -303,7 +316,9 @@ class PeerConnection {
             return;
         }
 
-        // Send file metadata first
+        console.log('Sending file request:', file.name);
+
+        // Send file request to receiver
         this.connection.send({
             type: 'file-request',
             name: file.name,
@@ -311,36 +326,43 @@ class PeerConnection {
             type: file.type
         });
 
-        // Store the file for later
+        // Store file for later
         this.pendingFileTransfer = file;
 
-        // Show status
-        document.getElementById('fileStatus').textContent = 'Waiting for receiver to accept...';
-        document.getElementById('fileStatus').style.display = 'block';
+        // Update UI
+        const statusDiv = document.getElementById('fileStatus');
+        statusDiv.textContent = `Waiting for receiver to accept ${file.name}...`;
+        statusDiv.style.display = 'block';
     }
 
     handleFileRequest(data) {
-        // Show incoming file info
-        const infoDiv = document.querySelector('.incoming-file-info');
+        console.log('Received file request:', data);
+
+        // Get UI elements
+        const receiveArea = document.getElementById('fileReceiveArea');
+        const infoDiv = receiveArea.querySelector('.incoming-file-info');
         const acceptBtn = document.getElementById('acceptFile');
         const rejectBtn = document.getElementById('rejectFile');
-        
-        // Update UI
+
+        // Show file request info
         infoDiv.innerHTML = `
             <div class="file-request">
                 <i class="fas fa-file fa-2x"></i>
-                <p><strong>Incoming File:</strong></p>
+                <p><strong>New File Received:</strong></p>
                 <p>${data.name}</p>
                 <p>(${this.formatFileSize(data.size)})</p>
             </div>
         `;
-        
-        // Show buttons
-        acceptBtn.style.display = 'block';
-        rejectBtn.style.display = 'block';
-        
-        // Handle accept
+
+        // Make sure buttons are visible
+        acceptBtn.style.display = 'inline-block';
+        rejectBtn.style.display = 'inline-block';
+
+        // Handle accept button
         acceptBtn.onclick = () => {
+            console.log('File request accepted');
+            
+            // Initialize transfer
             this.currentFileTransfer = {
                 name: data.name,
                 size: data.size,
@@ -348,22 +370,32 @@ class PeerConnection {
                 chunks: [],
                 receivedSize: 0
             };
-            
-            // Hide buttons and update status
+
+            // Hide buttons
             acceptBtn.style.display = 'none';
             rejectBtn.style.display = 'none';
-            document.getElementById('fileStatus').textContent = 'Starting transfer...';
-            document.getElementById('fileStatus').style.display = 'block';
-            
-            // Send acceptance
+
+            // Show status
+            const statusDiv = document.getElementById('fileStatus');
+            statusDiv.textContent = 'Starting file transfer...';
+            statusDiv.style.display = 'block';
+
+            // Tell sender we accepted
             this.connection.send({ type: 'file-accepted' });
         };
-        
-        // Handle reject
+
+        // Handle reject button
         rejectBtn.onclick = () => {
+            console.log('File request rejected');
+            
+            // Hide buttons
             acceptBtn.style.display = 'none';
             rejectBtn.style.display = 'none';
+
+            // Reset info
             infoDiv.innerHTML = '<p>No incoming files</p>';
+
+            // Tell sender we rejected
             this.connection.send({ type: 'file-rejected' });
         };
     }
@@ -577,5 +609,19 @@ class PeerConnection {
     // Add this method to check device type
     isMobileDevice() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    resetReceiveArea() {
+        const receiveArea = document.getElementById('fileReceiveArea');
+        const infoDiv = receiveArea.querySelector('.incoming-file-info');
+        const acceptBtn = document.getElementById('acceptFile');
+        const rejectBtn = document.getElementById('rejectFile');
+
+        // Reset info text
+        infoDiv.innerHTML = '<p>No incoming files</p>';
+
+        // Hide buttons
+        acceptBtn.style.display = 'none';
+        rejectBtn.style.display = 'none';
     }
 } 
