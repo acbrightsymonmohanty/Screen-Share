@@ -4,8 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Connect button handler
     document.getElementById('connectBtn').addEventListener('click', () => {
         const remoteId = document.getElementById('remoteId').value.trim();
-        if (remoteId) {
+        if (remoteId && /^\d{6}$/.test(remoteId)) {
             peerConnection.connect(remoteId);
+        } else {
+            alert('Please enter a valid 6-digit ID');
         }
     });
 
@@ -98,4 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         statusElement.textContent = message;
         statusElement.style.display = 'block';
     }
+
+    // Add this with the other button handlers
+    document.getElementById('newId').addEventListener('click', () => {
+        const newId = peerConnection.generateDigitId();
+        peerConnection.peer.reconnect(newId);
+    });
 }); 

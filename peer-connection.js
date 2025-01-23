@@ -9,10 +9,25 @@ class PeerConnection {
     }
 
     async initialize() {
-        this.peer = new Peer();
+        // Generate a 6-digit random ID
+        const randomId = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        this.peer = new Peer(randomId, {
+            debug: 2
+        });
         
         this.peer.on('open', (id) => {
             document.getElementById('localId').textContent = id;
+        });
+
+        this.peer.on('error', (error) => {
+            if (error.type === 'unavailable-id') {
+                // If ID is taken, generate a new one
+                const newId = Math.floor(100000 + Math.random() * 900000).toString();
+                this.peer.reconnect(newId);
+            } else {
+                console.error('Peer error:', error);
+            }
         });
 
         this.peer.on('connection', (conn) => {
@@ -244,5 +259,9 @@ class PeerConnection {
 
     simulateKeyPress(key) {
         console.log('Key press:', key);
+    }
+
+    generateDigitId() {
+        return Math.floor(100000 + Math.random() * 900000).toString();
     }
 } 
