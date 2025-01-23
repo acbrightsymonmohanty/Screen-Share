@@ -1,14 +1,41 @@
 document.addEventListener('DOMContentLoaded', () => {
     const peerConnection = new PeerConnection();
+    const connectionStatus = document.getElementById('connectionStatus');
     
-    // Connect button handler
+    // Connect button handler with loading state
     document.getElementById('connectBtn').addEventListener('click', () => {
         const remoteId = document.getElementById('remoteId').value.trim();
         if (remoteId && /^\d{6}$/.test(remoteId)) {
+            const connectBtn = document.getElementById('connectBtn');
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting...';
+            
             peerConnection.connect(remoteId);
+            
+            // Show connecting status
+            connectionStatus.textContent = 'Connecting...';
+            connectionStatus.style.display = 'block';
         } else {
             alert('Please enter a valid 6-digit ID');
         }
+    });
+
+    // Listen for connection events
+    window.addEventListener('connected', () => {
+        connectionStatus.textContent = peerConnection.isHost ? 
+            'Sharing screen' : 'Connected to remote screen';
+        connectionStatus.style.display = 'block';
+        
+        const connectBtn = document.getElementById('connectBtn');
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Connect';
+    });
+
+    window.addEventListener('disconnected', () => {
+        connectionStatus.style.display = 'none';
+        const connectBtn = document.getElementById('connectBtn');
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Connect';
     });
 
     // Copy ID button handler

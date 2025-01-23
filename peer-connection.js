@@ -5,6 +5,8 @@ class PeerConnection {
         this.localStream = null;
         this.remoteStream = null;
         this.isControlling = false;
+        this.isHost = false;
+        this.pendingConnection = null;
         this.initialize();
     }
 
@@ -31,22 +33,98 @@ class PeerConnection {
         });
 
         this.peer.on('connection', (conn) => {
-            this.connection = conn;
-            this.setupConnectionHandlers();
+            this.pendingConnection = conn;
+            this.showConnectionRequest(conn.peer);
         });
 
         this.peer.on('call', (call) => {
-            call.answer();
-            call.on('stream', (stream) => {
-                this.remoteStream = stream;
-                this.displayRemoteStream();
-            });
+            // Only answer if we've accepted the connection
+            if (this.connection && call.peer === this.connection.peer) {
+                call.answer();
+                call.on('stream', (stream) => {
+                    this.remoteStream = stream;
+                    this.displayRemoteStream();
+                });
+            }
         });
+    }
+
+    showConnectionRequest(peerId) {
+        const confirmDialog = document.createElement('div');
+        confirmDialog.className = 'confirm-dialog';
+        confirmDialog.innerHTML = `
+            <div class="confirm-content">
+                <h3>Connection Request</h3>
+                <p>Remote ID ${peerId} wants to connect and control your screen.</p>
+                <div class="confirm-buttons">
+                    <button id="acceptConnection" class="btn btn-success">Accept</button>
+                    <button id="rejectConnection" class="btn btn-danger">Reject</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(confirmDialog);
+
+        document.getElementById('acceptConnection').onclick = () => {
+            this.acceptConnection();
+            document.body.removeChild(confirmDialog);
+        };
+
+        document.getElementById('rejectConnection').onclick = () => {
+            this.rejectConnection();
+            document.body.removeChild(confirmDialog);
+        };
+    }
+
+    async acceptConnection() {
+        if (this.pendingConnection) {
+            this.connection = this.pendingConnection;
+            this.isHost = true;
+            this.setupConnectionHandlers();
+            this.pendingConnection = null;
+
+            // Start screen sharing immediately after accepting
+            try {
+                // Request screen share from user
+                this.localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { 
+                        cursor: 'always',
+                        displaySurface: 'monitor'
+                    },
+                    audio: false
+                });
+
+                // Once we have the stream, make the call
+                if (this.connection && this.connection.peer) {
+                    const call = this.peer.call(this.connection.peer, this.localStream);
+                    
+                    // Handle stream end
+                    this.localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                        this.stopSharing();
+                    });
+
+                    // Update UI
+                    document.getElementById('stopSharing').disabled = false;
+                    document.getElementById('shareScreen').disabled = true;
+                }
+            } catch (err) {
+                console.error('Screen sharing failed:', err);
+                alert('Failed to start screen sharing. The connection will continue without screen share.');
+            }
+        }
+    }
+
+    rejectConnection() {
+        if (this.pendingConnection) {
+            this.pendingConnection.close();
+            this.pendingConnection = null;
+        }
     }
 
     async connect(remoteId) {
         try {
             this.connection = this.peer.connect(remoteId);
+            this.isHost = false;
             this.setupConnectionHandlers();
             document.getElementById('shareScreen').disabled = false;
             document.getElementById('sendFile').disabled = false;
@@ -60,11 +138,30 @@ class PeerConnection {
         this.connection.on('open', () => {
             console.log('Connection established');
             this.enableControls();
-            this.isControlling = true;
+            
+            if (this.isHost) {
+                // Host can't control their own screen
+                this.isControlling = false;
+            } else {
+                // Client gets control capabilities
+                this.isControlling = true;
+                // Request screen share from host if not already sharing
+                if (!this.remoteStream) {
+                    this.connection.send({
+                        type: 'requestScreen'
+                    });
+                }
+            }
+
+            // Emit connected event for UI updates
+            this.emit('connected');
         });
 
         this.connection.on('data', (data) => {
-            if (data.type === 'mouseMove') {
+            if (data.type === 'requestScreen' && this.isHost) {
+                // Start sharing screen when client requests it
+                this.shareScreen();
+            } else if (data.type === 'mouseMove') {
                 this.handleRemoteMouseMove(data);
             } else if (data.type === 'mouseClick') {
                 this.handleRemoteMouseClick(data);
@@ -74,23 +171,39 @@ class PeerConnection {
                 this.handleIncomingFile(data);
             }
         });
+
+        // Handle connection close
+        this.connection.on('close', () => {
+            this.stopSharing();
+            this.emit('disconnected');
+        });
     }
 
     async shareScreen() {
         try {
-            this.localStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { cursor: 'always' },
-                audio: false
-            });
+            if (!this.localStream) {
+                this.localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { 
+                        cursor: 'always',
+                        displaySurface: 'monitor'
+                    },
+                    audio: false
+                });
 
-            const call = this.peer.call(this.connection.peer, this.localStream);
-            
-            this.localStream.getVideoTracks()[0].addEventListener('ended', () => {
-                this.stopSharing();
-            });
+                // Make the call to the remote peer
+                if (this.connection && this.connection.peer) {
+                    const call = this.peer.call(this.connection.peer, this.localStream);
+                    
+                    // Handle stream end
+                    this.localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                        this.stopSharing();
+                    });
+                }
 
-            document.getElementById('stopSharing').disabled = false;
-            document.getElementById('shareScreen').disabled = true;
+                // Update UI
+                document.getElementById('stopSharing').disabled = false;
+                document.getElementById('shareScreen').disabled = true;
+            }
         } catch (err) {
             console.error('Screen sharing failed:', err);
             alert('Failed to start screen sharing');
@@ -102,17 +215,48 @@ class PeerConnection {
             this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
+        
+        if (this.remoteStream) {
+            this.remoteStream.getTracks().forEach(track => track.stop());
+            this.remoteStream = null;
+        }
+
+        // Reset video display
+        const video = document.getElementById('remoteVideo');
+        const noShare = document.getElementById('noShare');
+        video.srcObject = null;
+        video.style.display = 'none';
+        noShare.style.display = 'block';
+
+        // Reset buttons
         document.getElementById('stopSharing').disabled = true;
-        document.getElementById('shareScreen').disabled = false;
+        document.getElementById('shareScreen').disabled = !this.connection;
     }
 
     displayRemoteStream() {
         const video = document.getElementById('remoteVideo');
         const noShare = document.getElementById('noShare');
         
-        video.srcObject = this.remoteStream;
-        video.style.display = 'block';
-        noShare.style.display = 'none';
+        if (this.remoteStream) {
+            video.srcObject = this.remoteStream;
+            video.style.display = 'block';
+            noShare.style.display = 'none';
+
+            // Ensure video plays
+            video.play().catch(err => {
+                console.error('Error playing video:', err);
+            });
+        }
+    }
+
+    // Add event emitter functionality
+    emit(eventName) {
+        const event = new CustomEvent(eventName, { detail: this });
+        window.dispatchEvent(event);
+    }
+
+    on(eventName, callback) {
+        window.addEventListener(eventName, (e) => callback(e.detail));
     }
 
     async sendFile(file) {
