@@ -191,7 +191,24 @@ class PeerConnection {
 
     async shareScreen() {
         try {
-            if (!this.localStream) {
+            // Check if it's a mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Mobile screen sharing options
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        mandatory: {
+                            mediaSource: 'screen',
+                            maxWidth: 1280,
+                            maxHeight: 720,
+                            maxFrameRate: 30
+                        }
+                    },
+                    audio: false
+                });
+            } else {
+                // Desktop screen sharing options
                 this.localStream = await navigator.mediaDevices.getDisplayMedia({
                     video: { 
                         cursor: 'always',
@@ -199,24 +216,35 @@ class PeerConnection {
                     },
                     audio: false
                 });
+            }
 
-                // Make the call to the remote peer
-                if (this.connection && this.connection.peer) {
-                    const call = this.peer.call(this.connection.peer, this.localStream);
-                    
-                    // Handle stream end
-                    this.localStream.getVideoTracks()[0].addEventListener('ended', () => {
-                        this.stopSharing();
-                    });
-                }
+            // Make the call to the remote peer
+            if (this.connection && this.connection.peer) {
+                const call = this.peer.call(this.connection.peer, this.localStream);
+                
+                // Handle stream end
+                this.localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    this.stopSharing();
+                });
 
                 // Update UI
                 document.getElementById('stopSharing').disabled = false;
                 document.getElementById('shareScreen').disabled = true;
+                
+                // Show the video element
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.style.display = 'block';
+                document.getElementById('noShare').style.display = 'none';
             }
         } catch (err) {
             console.error('Screen sharing failed:', err);
-            alert('Failed to start screen sharing');
+            if (err.name === 'NotAllowedError') {
+                alert('Please grant screen sharing permission');
+            } else if (err.name === 'NotSupportedError') {
+                alert('Screen sharing is not supported on this device/browser');
+            } else {
+                alert('Failed to start screen sharing. Please try again.');
+            }
         }
     }
 
@@ -544,5 +572,10 @@ class PeerConnection {
     emitFileEvent(eventName, data) {
         const event = new CustomEvent(eventName, { detail: data });
         window.dispatchEvent(event);
+    }
+
+    // Add this method to check device type
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 } 

@@ -159,6 +159,7 @@ input[type="text"]:focus {
     width: 100%;
     aspect-ratio: 16/9;
     overflow: hidden;
+    background-color: var(--bg-color);
 }
 
 #remoteVideo {
@@ -302,9 +303,35 @@ input[type="text"]:focus {
     }
 
     .screen-wrapper {
-        aspect-ratio: 16/9;
-        border-radius: 0.5rem;
-        overflow: hidden;
+        aspect-ratio: 9/16;
+    }
+
+    #remoteVideo {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .screen-controls {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        padding: 1rem;
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .btn {
+        padding: 12px;
+        min-width: 44px;
+    }
+
+    .screen-wrapper:active .screen-controls {
+        opacity: 1;
     }
 
     .file-transfer-area {
@@ -509,4 +536,17 @@ input[type="text"]:focus {
 
 #downloadButton {
     margin-top: 10px;
+}
+
+/* Add mobile orientation handling */
+@media (orientation: portrait) and (max-width: 768px) {
+    .screen-wrapper {
+        aspect-ratio: 9/16;
+    }
+}
+
+@media (orientation: landscape) and (max-width: 768px) {
+    .screen-wrapper {
+        aspect-ratio: 16/9;
+    }
 } 
