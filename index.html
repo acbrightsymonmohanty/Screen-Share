@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Control App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Remote Control App</h1>
+        
+        <div class="connection-controls">
+            <div class="id-section">
+                <h3>Your ID: <span id="localId">Generating...</span></h3>
+                <button id="copyId" class="btn">Copy ID</button>
+            </div>
+            <div class="connect-section">
+                <input type="text" id="remoteId" placeholder="Enter Remote ID">
+                <button id="connectBtn" class="btn">Connect</button>
+            </div>
+        </div>
+
+        <div class="main-controls">
+            <button id="shareScreen" class="btn" disabled>Share My Screen</button>
+            <button id="stopSharing" class="btn" disabled>Stop Sharing</button>
+            <button id="sendFile" class="btn" disabled>Send File</button>
+            <input type="file" id="fileInput" style="display: none">
+        </div>
+
+        <div class="screen-container">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <div id="noShare" class="no-share-message">
+                Not connected. Enter a remote ID to connect.
+            </div>
+        </div>
+
+        <div class="file-transfer-status" id="fileStatus"></div>
+    </div>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="peer-connection.js"></script>
+    <script src="remote-control.js"></script>
+</body>
+</html> 

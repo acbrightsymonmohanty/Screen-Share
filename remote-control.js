@@ -1,0 +1,101 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const peerConnection = new PeerConnection();
+    
+    // Connect button handler
+    document.getElementById('connectBtn').addEventListener('click', () => {
+        const remoteId = document.getElementById('remoteId').value.trim();
+        if (remoteId) {
+            peerConnection.connect(remoteId);
+        }
+    });
+
+    // Copy ID button handler
+    document.getElementById('copyId').addEventListener('click', () => {
+        const localId = document.getElementById('localId').textContent;
+        navigator.clipboard.writeText(localId)
+            .then(() => alert('ID copied to clipboard!'))
+            .catch(err => console.error('Failed to copy:', err));
+    });
+
+    // Screen sharing handlers
+    document.getElementById('shareScreen').addEventListener('click', () => {
+        peerConnection.shareScreen();
+    });
+
+    document.getElementById('stopSharing').addEventListener('click', () => {
+        peerConnection.stopSharing();
+    });
+
+    // File sharing handlers
+    document.getElementById('sendFile').addEventListener('click', () => {
+        document.getElementById('fileInput').click();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            peerConnection.sendFile(file);
+            document.getElementById('fileStatus').textContent = `Sending: ${file.name}`;
+            document.getElementById('fileStatus').style.display = 'block';
+        }
+    });
+
+    // Remote control event listeners
+    const remoteVideo = document.getElementById('remoteVideo');
+    
+    remoteVideo.addEventListener('mouseenter', () => {
+        if (peerConnection.connection) {
+            peerConnection.isControlling = true;
+        }
+    });
+
+    remoteVideo.addEventListener('mouseleave', () => {
+        if (peerConnection.connection) {
+            peerConnection.isControlling = false;
+        }
+    });
+
+    remoteVideo.addEventListener('mousemove', (e) => {
+        if (peerConnection.connection && peerConnection.isControlling) {
+            const rect = remoteVideo.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            
+            peerConnection.connection.send({
+                type: 'mouseMove',
+                x: x,
+                y: y
+            });
+        }
+    });
+
+    remoteVideo.addEventListener('click', (e) => {
+        if (peerConnection.connection && peerConnection.isControlling) {
+            const rect = remoteVideo.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            
+            peerConnection.connection.send({
+                type: 'mouseClick',
+                x: x,
+                y: y
+            });
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (peerConnection.connection && peerConnection.isControlling) {
+            peerConnection.connection.send({
+                type: 'keyPress',
+                key: e.key
+            });
+        }
+    });
+
+    // Add this to handle file transfer progress
+    function updateFileStatus(message) {
+        const statusElement = document.getElementById('fileStatus');
+        statusElement.textContent = message;
+        statusElement.style.display = 'block';
+    }
+}); 
