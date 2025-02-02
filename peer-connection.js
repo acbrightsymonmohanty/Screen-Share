@@ -338,66 +338,8 @@ class PeerConnection {
     handleFileRequest(data) {
         console.log('Received file request:', data);
 
-        // Get UI elements
-        const receiveArea = document.getElementById('fileReceiveArea');
-        const infoDiv = receiveArea.querySelector('.incoming-file-info');
-        const acceptBtn = document.getElementById('acceptFile');
-        const rejectBtn = document.getElementById('rejectFile');
-
-        // Show file request info
-        infoDiv.innerHTML = `
-            <div class="file-request">
-                <i class="fas fa-file fa-2x"></i>
-                <p><strong>New File Received:</strong></p>
-                <p>${data.name}</p>
-                <p>(${this.formatFileSize(data.size)})</p>
-            </div>
-        `;
-
-        // Make sure buttons are visible
-        acceptBtn.style.display = 'inline-block';
-        rejectBtn.style.display = 'inline-block';
-
-        // Handle accept button
-        acceptBtn.onclick = () => {
-            console.log('File request accepted');
-            
-            // Initialize transfer
-            this.currentFileTransfer = {
-                name: data.name,
-                size: data.size,
-                type: data.type,
-                chunks: [],
-                receivedSize: 0
-            };
-
-            // Hide buttons
-            acceptBtn.style.display = 'none';
-            rejectBtn.style.display = 'none';
-
-            // Show status
-            const statusDiv = document.getElementById('fileStatus');
-            statusDiv.textContent = 'Starting file transfer...';
-            statusDiv.style.display = 'block';
-
-            // Tell sender we accepted
-            this.connection.send({ type: 'file-accepted' });
-        };
-
-        // Handle reject button
-        rejectBtn.onclick = () => {
-            console.log('File request rejected');
-            
-            // Hide buttons
-            acceptBtn.style.display = 'none';
-            rejectBtn.style.display = 'none';
-
-            // Reset info
-            infoDiv.innerHTML = '<p>No incoming files</p>';
-
-            // Tell sender we rejected
-            this.connection.send({ type: 'file-rejected' });
-        };
+        // Emit file request event for UI updates
+        this.emitFileEvent('fileRequest', data);
     }
 
     async startFileTransfer(file) {
@@ -447,7 +389,7 @@ class PeerConnection {
         }
     }
 
-    handleFileChunk(data) {
+    async handleFileChunk(data) {
         if (!this.currentFileTransfer) return;
 
         try {
@@ -482,6 +424,13 @@ class PeerConnection {
                     document.getElementById('fileStatus').style.display = 'none';
                     document.querySelector('.incoming-file-info').innerHTML = '<p>No incoming files</p>';
                 }, 3000);
+
+                // Emit file transfer complete event
+                this.emitFileEvent('fileTransferComplete', {
+                    fileName: this.currentFileTransfer.name,
+                    type: 'receive',
+                    fileUrl: url
+                });
 
                 this.currentFileTransfer = null;
             }
@@ -624,4 +573,4 @@ class PeerConnection {
         acceptBtn.style.display = 'none';
         rejectBtn.style.display = 'none';
     }
-} 
+}
