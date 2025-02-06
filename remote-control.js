@@ -4,6 +4,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const screenWrapper = document.getElementById('screenWrapper');
     const remoteVideo = document.getElementById('remoteVideo');
     
+    
+
+
+     
+  
+    
     // Zoom control variables
     let currentZoom = 1;
     const ZOOM_STEP = 0.1;
@@ -48,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add fullscreen button
     const fullscreenBtn = document.createElement('button');
     fullscreenBtn.className = 'btn btn-icon fullscreen-btn';
-    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+    fullscreenBtn.innerHTML = '<i class="fas fa-expand" class="z-index:999999999;"></i>';
     screenWrapper.appendChild(fullscreenBtn);
 
     fullscreenBtn.addEventListener('click', () => {
@@ -62,66 +68,92 @@ document.addEventListener('DOMContentLoaded', () => {
     // Connect button handler with loading state
     document.getElementById('connectBtn').addEventListener('click', () => {
         const remoteId = document.getElementById('remoteId').value.trim();
-        const connectionStatus = document.getElementById('connectionStatus'); // Assuming this exists in your HTML
+        const connectBtn = document.getElementById('connectBtn');
         
         if (remoteId && /^\d{6}$/.test(remoteId)) {
-            const connectBtn = document.getElementById('connectBtn');
+            // Update button state
             connectBtn.disabled = true;
-            connectBtn.textContent = 'Connecting...';
+            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
             
             // Attempt to connect
             peerConnection.connect(remoteId);
-    
-            // Show connecting status
-            connectionStatus.textContent = 'Connecting...';
-            connectionStatus.style.display = 'block';
-    
-            // Listen for a successful connection event
-            peerConnection.on('connected', () => {
-                connectBtn.textContent = 'Connected';
-                connectBtn.disabled = false;
-                connectionStatus.textContent = 'Connected successfully';
-                connectionStatus.style.display = 'block';
-            });
-    
-            // Handle connection errors
-            peerConnection.on('error', (error) => {
-                connectBtn.textContent = 'Connect';
-                connectBtn.disabled = false;
-                connectionStatus.textContent = `Connection failed: ${error.message}`;
-                connectionStatus.style.display = 'block';
-            });
         } else {
-            alert('Please enter a valid 6-digit ID');
+            peerConnection.showNotification('Please enter a valid 6-digit ID', 'error');
         }
     });
     
 
     // Listen for connection events
     window.addEventListener('connected', () => {
-        connectionStatus.textContent = peerConnection.isHost ? 
-            'Sharing screen' : 'Connected to remote screen';
-        connectionStatus.style.display = 'block';
-        
+        const connectionStatus = document.getElementById('connectionStatus');
         const connectBtn = document.getElementById('connectBtn');
-        connectBtn.disabled = false;
-        connectBtn.textContent = 'Connect';
+        
+        if (peerConnection.isHost) {
+            connectionStatus.textContent = 'Connected - Starting screen share';
+        } else {
+            connectionStatus.textContent = 'Connected to remote screen';
+        }
+        connectionStatus.style.display = 'block';
     });
 
     window.addEventListener('disconnected', () => {
-        connectionStatus.style.display = 'none';
+        const connectionStatus = document.getElementById('connectionStatus');
         const connectBtn = document.getElementById('connectBtn');
+        
+        connectionStatus.style.display = 'none';
         connectBtn.disabled = false;
-        connectBtn.textContent = 'Connect';
+        connectBtn.innerHTML = '<i class="fas fa-plug"></i> Connect';
     });
 
     // Copy ID button handler
     document.getElementById('copyId').addEventListener('click', () => {
         const localId = document.getElementById('localId').textContent;
         navigator.clipboard.writeText(localId)
-            .then(() => alert('ID copied to clipboard!'))
-            .catch(err => console.error('Failed to copy:', err));
-    });
+          .then(() => {
+            const copyBtn = document.getElementById('copyId');
+            
+            // Ensure the button is positioned relative so that the tooltip can be absolutely positioned
+            copyBtn.style.position = 'relative';
+            
+            // Create the tooltip element
+            const tooltip = document.createElement('span');
+            tooltip.textContent = "Copied!";
+            tooltip.style.position = 'absolute';
+            tooltip.style.top = '100%'; // Display below the button
+            tooltip.style.left = '50%';
+            tooltip.style.transform = 'translateX(-50%)';
+            tooltip.style.backgroundColor = '#333';
+            tooltip.style.color = '#fff';
+            tooltip.style.padding = '5px 8px';
+            tooltip.style.borderRadius = '4px';
+            tooltip.style.fontSize = '12px';
+            tooltip.style.whiteSpace = 'nowrap';
+            tooltip.style.zIndex = '1000';
+            tooltip.style.marginTop = '8px';
+            tooltip.style.opacity = '0';
+            tooltip.style.transition = 'opacity 0.3s';
+      
+            // Append the tooltip to the button
+            copyBtn.appendChild(tooltip);
+      
+            // Fade in the tooltip
+            setTimeout(() => {
+              tooltip.style.opacity = '1';
+            }, 10);
+      
+            // After 2 seconds, fade out and remove the tooltip
+            setTimeout(() => {
+              tooltip.style.opacity = '0';
+              setTimeout(() => {
+                if (copyBtn.contains(tooltip)) {
+                  copyBtn.removeChild(tooltip);
+                }
+              }, 300); // match the transition duration
+            }, 2000);
+          })
+          .catch(err => console.error('Failed to copy:', err));
+      });
+      
 
     // Screen sharing handlers
     document.getElementById('shareScreen').addEventListener('click', () => {
@@ -130,24 +162,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('stopSharing').addEventListener('click', () => {
         peerConnection.stopSharing();
+        document.getElementById('shareScreen').disabled = false;
+        document.getElementById('stopSharing').disabled = true;
     });
 
     // File sharing handlers
     document.getElementById('sendFile').addEventListener('click', () => {
-        if (peerConnection.connection) {
-            document.getElementById('fileInput').click();
-        } else {
-            alert('Please connect to a peer first');
+        if (!peerConnection.connection) {
+            peerConnection.showNotification('Please connect to a peer first', 'error');
+            return;
         }
+        document.getElementById('fileInput').click();
     });
 
     document.getElementById('fileInput').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-            console.log('File selected:', file);
+            if (file.size > 100 * 1024 * 1024) { // 100MB limit
+                peerConnection.showNotification('File size too large (max 100MB)', 'error');
+                return;
+            }
             peerConnection.sendFile(file);
-            // Reset input
-            e.target.value = '';
+            e.target.value = ''; // Reset input
         }
     });
 
@@ -210,8 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add this with the other button handlers
     document.getElementById('newId').addEventListener('click', () => {
-        const newId = peerConnection.generateDigitId();
-        peerConnection.peer.reconnect(newId);
+        location.reload(); // Refresh the whole page
     });
 
     // File transfer status updates
@@ -224,84 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('fileTransferComplete', (e) => {
-        const { fileName, type, fileUrl } = e.detail;
+        const { fileName, type } = e.detail;
         const statusDiv = document.getElementById('fileStatus');
         statusDiv.textContent = `${type === 'send' ? 'Sent' : 'Received'}: ${fileName}`;
-        
-        if (type === 'receive') {
-            const fileLink = document.createElement('a');
-            fileLink.href = fileUrl;
-            fileLink.textContent = fileName;
-            fileLink.download = fileName;
-            fileLink.className = 'received-file-link';
-            document.getElementById('receivedFiles').appendChild(fileLink);
-        }
-
         setTimeout(() => {
             statusDiv.style.display = 'none';
         }, 3000);
-    });
-
-    // Add event listener for file request
-    window.addEventListener('fileRequest', (e) => {
-        const { name, size } = e.detail;
-        const receiveArea = document.getElementById('fileReceiveArea');
-        const infoDiv = receiveArea.querySelector('.incoming-file-info');
-        const acceptBtn = document.getElementById('acceptFile');
-        const rejectBtn = document.getElementById('rejectFile');
-
-        // Show file request info
-        infoDiv.innerHTML = `
-            <div class="file-request">
-                <i class="fas fa-file fa-2x"></i>
-                <p><strong>New File Received:</strong></p>
-                <p>${name}</p>
-                <p>(${peerConnection.formatFileSize(size)})</p>
-            </div>
-        `;
-
-        // Make sure buttons are visible
-        acceptBtn.style.display = 'inline-block';
-        rejectBtn.style.display = 'inline-block';
-
-        // Handle accept button
-        acceptBtn.onclick = () => {
-            console.log('File request accepted');
-            
-            // Initialize transfer
-            peerConnection.currentFileTransfer = {
-                name: name,
-                size: size,
-                chunks: [],
-                receivedSize: 0
-            };
-
-            // Hide buttons
-            acceptBtn.style.display = 'none';
-            rejectBtn.style.display = 'none';
-
-            // Show status
-            const statusDiv = document.getElementById('fileStatus');
-            statusDiv.textContent = 'Starting file transfer...';
-            statusDiv.style.display = 'block';
-
-            // Tell sender we accepted
-            peerConnection.connection.send({ type: 'file-accepted' });
-        };
-
-        // Handle reject button
-        rejectBtn.onclick = () => {
-            console.log('File request rejected');
-            
-            // Hide buttons
-            acceptBtn.style.display = 'none';
-            rejectBtn.style.display = 'none';
-
-            // Reset info
-            infoDiv.innerHTML = '<p>No incoming files</p>';
-
-            // Tell sender we rejected
-            peerConnection.connection.send({ type: 'file-rejected' });
-        };
     });
 });

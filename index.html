@@ -14,56 +14,81 @@
                 <i class="fas fa-desktop"></i>
                 Remote Control
             </div>
-            <div class="connection-status" id="connectionStatus"></div>
-        </nav>
+            <div class="nav-center">
 
-        <div class="main-content">
-            <div class="connection-panel">
-                <div class="id-section">
-                    <h3><i class="fas fa-fingerprint"></i> Your ID</h3>
-                    <div class="id-display">
-                        <span id="localId">Generating...</span>
-                        <button id="copyId" class="btn btn-icon">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button id="newId" class="btn btn-icon">
-                            <i class="fas fa-refresh"></i>
-                        </button>
-                    </div>
+                <fieldset class="id-section">
+                    <legend>Remote ID</legend>
+                   
+                        <div class="id-display">
+                            <span id="localId">Generating..</span>
+                            <button id="copyId" class="btn btn-icon btn-icon-bgnone">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button id="newId" class="btn btn-icon btn-icon-bgnone">
+                                <i class="fas fa-refresh"></i>
+                            </button>
+                        </div>
+                    
+                </fieldset>
+
+                <!-- <div class="id-section">
+                <div class="id-display">
+                    <span id="localId">Generating..</span>
+                    <button id="copyId" class="btn btn-icon btn-icon-bgnone">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button id="newId" class="btn btn-icon btn-icon-bgnone">
+                        <i class="fas fa-refresh"></i>
+                    </button>
                 </div>
+            </div> -->
 
+               
                 <div class="connect-section">
-                    <h3 style="margin-left: 70px;"><i class="fas fa-link"></i> Connect to Remote</h3>
                     <div class="connect-input">
-                        <input type="text" id="remoteId" placeholder="Enter 6-digit ID">
+                        <input type="text" id="remoteId" placeholder="Enter remote ID">
                         <button id="connectBtn" class="btn btn-primary">
                             <i class="fas fa-plug"></i> Connect
                         </button>
                     </div>
                 </div>
-            </div>
-
-            <div class="control-panel">
-                <div class="screen-controls">
-                    <button id="shareScreen" class="btn btn-primary" disabled>
-                        <i class="fas fa-share"></i> Share Screen
+                <div class="dropdown">
+                    <button class="btn btn-icon btn-icon-bgnone">
+                        <i class="fas fa-caret-down"></i> Controls
                     </button>
-                    <button id="stopSharing" class="btn btn-danger" disabled>
-                        <i class="fas fa-stop"></i> Stop Sharing
-                    </button>
-                    <div class="zoom-controls">
-                        <button id="zoomIn" class="btn btn-icon">
-                            <i class="fas fa-search-plus"></i>
+                    <div class="dropdown-content">
+                        <button id="shareScreen" class="btn btn-primary" disabled>
+                            <i class="fas fa-share"></i> Share Screen
                         </button>
-                        <button id="zoomReset" class="btn btn-icon">
-                            <i class="fas fa-compress"></i>
+                        <button id="stopSharing" class="btn btn-danger" disabled>
+                            <i class="fas fa-stop"></i> Stop Sharing
                         </button>
-                        <button id="zoomOut" class="btn btn-icon">
-                            <i class="fas fa-search-minus"></i>
-                        </button>
+                        <div class="zoom-controls">
+                            <button id="zoomIn" class="btn btn-icon">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <button id="zoomReset" class="btn btn-icon">
+                                <i class="fas fa-compress"></i>
+                            </button>
+                            <button id="zoomOut" class="btn btn-icon">
+                                <i class="fas fa-search-minus"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </div>
+            <div class="connection-status" id="connectionStatus"><p style="color: green;">Ready to connect</p></div>
+            <div class="internet-status">
+                <span id="internetStatus">
+                    <i class="fas fa-wifi"></i> 
+                </span>
+            </div>
+        </nav>
 
+        <div class="main-content">
+            
+
+            <div class="control-panel">
                 <div class="screen-container">
                     <div class="screen-wrapper" id="screenWrapper">
                         <video id="remoteVideo" autoplay playsinline></video>
@@ -74,14 +99,14 @@
                     </div>
                 </div>
 
-                <div class="file-transfer-panel">
+                <!--<div class="file-transfer-panel">
                     <div class="file-controls">
                         <button id="sendFile" class="btn btn-primary" disabled>
                             <i class="fas fa-file-upload"></i> Send File
                         </button>
                         <input type="file" id="fileInput" style="display: none">
                     </div>
-                    <div class="file-status" id="fileStatus"></div>
+                    <div class="file-status" id="fileStatus" style="display: none"></div>
                     <div class="file-receive-area" id="fileReceiveArea">
                         <div class="incoming-file-info">
                             <i class="fas fa-file-import fa-2x"></i>
@@ -96,12 +121,21 @@
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>-->
+                
             </div>
         </div>
     </div>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!--
+    <script src="./script-min.js"></script>
+    <script src="./peer-connection-min.js"></script>
+    <script src="./remote-control-min.js"></script>
+    -->
+    
     <script src="peer-connection.js"></script>
     <script src="remote-control.js"></script>
+    <script src="./file-share.js"></script>
+    
 </body>
-</html> 
+</html>
